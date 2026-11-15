@@ -1,0 +1,46 @@
+name: Build
+
+on:
+  push:
+  workflow_call:
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build image
+    container:
+      image: archlinux:base-devel
+      options: --privileged
+    outputs:
+      builddate: ${{ steps.date.outputs.builddate }}
+    steps:
+      - name: Get build date
+        id: date
+        run: |
+          echo "builddate=$(date +'%y%m%d')" >> $GITHUB_OUTPUT
+
+      - name: Clone cachyos-recovery
+        id: clone
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        id: dependencies
+        run: |
+          pacman -Syu --noconfirm mkosi systemd-ukify
+
+      - name: Build mkosi image
+        id: mkosi
+        run: |
+          mkosi build
+
+      - name: Upload image to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cachyos-recovery-${{ steps.date.outputs.builddate }}
+          path: mkosi.output/*
