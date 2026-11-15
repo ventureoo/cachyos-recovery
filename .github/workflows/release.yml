@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  release:
+    types: [ published ]
+  push:
+    tags:
+      - '*.*.*'
+
+concurrency:
+  group: ${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yml
+
+  release:
+    name: Release
+    needs: build
+    runs-on: ubuntu-slim
+    steps:
+    - name: Clone
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+        fetch-tags: true
+
+    - name: Fetch tags
+      id: fetch
+      shell: bash
+      run: |
+        git fetch origin +refs/tags/*:refs/tags/*
+
+    - name: Create release
+      id: create
+      shell: bash
+      run: >-
+        gh
+        release create
+        ${{ github.ref_name }}
+        --latest
+        --title "Image from ${{ needs.build.outputs.builddate }}"
+        --notes-from-tag
+        --verify-tag
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  upload:
+    name: Upload images
+    runs-on: ubuntu-slim
+    needs: release
+    steps:
+      - name: Download images
+        id: download
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/output
+          merge-multiple: true
+
+      - name: Upload mkosi images to release
+        shell: bash
+        run: >-
+          gh
+          --repo "${{ github.server_url }}/${{ github.repository }}"
+          release upload
+          ${{ github.ref_name }}
+          /tmp/output/cachyos-recovery.efi
+          /tmp/output/cachyos-recovery.vmlinuz
+          /tmp/output/cachyos-recovery.initrd
+          --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
