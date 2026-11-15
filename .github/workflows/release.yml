@@ -49,6 +49,7 @@ jobs:
 
   upload:
     name: Upload images
+    runs-on: ubuntu-slim
     needs: release
     steps:
       - name: Download images
